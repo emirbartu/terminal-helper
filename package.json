@@ -5,7 +5,7 @@
     "main": "bin/index.js",
     "type": "module",
     "bin": {
-        "cloi": "bin/index.js",
+        "cloi": "src/cli/main.js",
         "cloi-setup": "bin/cloi-setup.cjs",
         "cloi-ollama-setup": "bin/ollama-setup.cjs"
     },
@@ -34,6 +34,7 @@
         "faiss-node": "^0.5.1",
         "ollama": "0.5.15",
         "seedrandom": "^3.0.5",
+        "systeminformation": "^5.27.7",
         "yargs": "^17.7.2"
     },
     "engines": {
