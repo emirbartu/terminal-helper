@@ -6,7 +6,6 @@ import { spawn } from 'child_process';
 import { Ollama } from 'ollama';
 import boxen from 'boxen';
 
-// Helper dosyalarından importlar
 import { buildTaskPlanPrompt } from '../core/promptTemplates/taskPlanner.js';
 import { getSystemInfo } from '../utils/systemInformation.js';
 import { askYesNo } from '../ui/prompt.js';
@@ -38,9 +37,6 @@ async function executeCommands(commands) {
   }
 }
 
-/**
- * 'ask' komutunun ana mantığını yönetir.
- */
 async function handleAskCommand(argv) {
   try {
     const systemInfo = await getSystemInfo();
@@ -51,19 +47,16 @@ async function handleAskCommand(argv) {
     const ollama = new Ollama({ host: 'http://localhost:11434' });
     
     const result = await ollama.generate({
-      model: 'phi4', // Veya tercih ettiğiniz başka bir model
+      model: 'phi4',
       prompt: prompt,
     });
     
-    // --- ÖNEMLİ DÜZELTME ---
-    // 'response' değişkenini 'let' ile tanımlıyoruz, çünkü değerini daha sonra değiştireceğiz.
     let response = result.response;
     console.log('Raw response from Ollama:', response);
     
-    // LLM'in cevabından saf JSON'ı ayıkla
+    // Parse JSON
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      // Eşleşen dizinin ilk elemanı bizim JSON metnimizdir.
       response = jsonMatch[0];
       console.log('Cleaned JSON:', response);
     } else {
@@ -78,7 +71,7 @@ async function handleAskCommand(argv) {
         throw new Error('Invalid JSON structure from LLM. "plan_steps" and "commands" arrays are required.');
       }
 
-      // Planı kullanıcıya göster
+      // Show plan in the box
       console.log(boxen(
         chalk.bold('Execution Plan:\n\n') +
         plan_steps.map(step => `• ${step}`).join('\n') +
@@ -87,13 +80,13 @@ async function handleAskCommand(argv) {
         { padding: 1, margin: 1, borderStyle: 'round', title: 'Cloi Terminal Helper', titleAlignment: 'center' }
       ));
 
-      // Komutları güvenlik için doğrula
+      // Safe Command Control
       if (!commands.every(isCommandSafe)) {
         console.error(chalk.red('Error: A potentially dangerous command was detected. Aborting.'));
         return;
       }
 
-      // Kullanıcıdan onay al
+      // Procceed confirmation
       const proceed = await askYesNo('Proceed with execution?');
       if (proceed) {
         await executeCommands(commands);
@@ -103,9 +96,9 @@ async function handleAskCommand(argv) {
       }
 
     } catch (parseError) {
-      // JSON parse hatasını daha detaylı yakala
+      // JSON parse error
       console.error(chalk.red('\nFailed to parse LLM response.'));
-      console.error('Original response was:', result.response); // Orijinal, temizlenmemiş çıktıyı göster
+      console.error('Original response was:', result.response);
       console.error('Parse error:', parseError.message);
     }
 
@@ -114,7 +107,6 @@ async function handleAskCommand(argv) {
   }
 }
 
-// Yargs CLI yapılandırması
 yargs(hideBin(process.argv))
   .command(
     'ask <query>',
