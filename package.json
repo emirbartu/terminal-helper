@@ -5,7 +5,7 @@
     "main": "bin/index.js",
     "type": "module",
     "bin": {
-        "cloi": "src/cli/main.js",
+        "cloi": "bin/index.js",
         "cloi-setup": "bin/cloi-setup.cjs",
         "cloi-ollama-setup": "bin/ollama-setup.cjs"
     },

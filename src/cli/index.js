@@ -24,7 +24,7 @@ import path, { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 
 // Import from our modules
 import { 
@@ -50,6 +50,8 @@ import {
   getAllAvailableModels,
   installModelIfNeeded as installModel
 } from '../core/index.js';
+// Import router for model queries
+import { routeModelQuery } from '../core/executor/router.js';
 // RAG imports are loaded dynamically to allow CLI to work without dependencies
 import { extractDiff, confirmAndApply } from '../utils/patch.js';
 import { displaySnippetsFromError, readFileContext, extractFilesFromTraceback, buildErrorContext, getErrorLines } from '../utils/traceback.js';
@@ -59,9 +61,14 @@ import { buildAnalysisPrompt, buildSummaryPrompt } from '../core/promptTemplates
 import { buildErrorTypePrompt } from '../core/promptTemplates/classify.js';
 import { buildCommandFixPrompt } from '../core/promptTemplates/command.js';
 import { buildPatchPrompt } from '../core/promptTemplates/patch.js';
+import { buildTaskPlanPrompt } from '../core/promptTemplates/taskPlanner.js';
 
 // Import model configuration utilities
 import { getDefaultModel } from '../utils/modelConfig.js';
+
+// Import system information and command validator
+import { getSystemInfo } from '../utils/systemInformation.js';
+import { isCommandSafe } from '../utils/commandValidator.js';
 
 // Get directory references
 const __filename = fileURLToPath(import.meta.url);
@@ -127,7 +134,7 @@ async function interactiveLoop(initialCmd, limit, initialModel) {
     while (true) {
       closeReadline(); // Ensure clean state before each iteration
       console.log(boxen(
-        `${chalk.gray('Type a command ')} (${chalk.blue('/debug')}, ${chalk.blue('/index')}, ${chalk.blue('/model')}, ${chalk.blue('/logging')}, ${chalk.blue('/help')})`,
+        `${chalk.gray('Type a command ')} (${chalk.blue('/ask')}, ${chalk.blue('/debug')}, ${chalk.blue('/index')}, ${chalk.blue('/model')}, ${chalk.blue('/logging')}, ${chalk.blue('/help')})`,
         BOX.PROMPT
       ));
       // Add improved gray text below the boxen prompt for exit instructions and /debug info
@@ -141,7 +148,32 @@ async function interactiveLoop(initialCmd, limit, initialModel) {
         });
       });
   
+      // Handle /ask command with natural language input
+      if (input.startsWith('/ask ')) {
+        const query = input.substring(5).trim();
+        if (query) {
+          process.stdout.write('\n');
+          await askCommand(query, currentModel);
+          process.stdout.write('\n');
+        } else {
+          console.log(boxen('Please provide a query after /ask', { ...BOX.OUTPUT, title: 'Usage Error' }));
+        }
+        continue;
+      }
+
       switch (input) {
+        case '/ask': {
+          process.stdout.write('\n');
+          const query = await askInput('What would you like me to help you with? ');
+          if (query && query.trim()) {
+            await askCommand(query.trim(), currentModel);
+          } else {
+            console.log(boxen('No query provided', { ...BOX.OUTPUT, title: 'Input Error' }));
+          }
+          process.stdout.write('\n');
+          break;
+        }
+
         case '/debug': {
           process.stdout.write('\n');
           await debugLoop(lastCmd, limit, currentModel);
@@ -226,6 +258,7 @@ async function interactiveLoop(initialCmd, limit, initialModel) {
         case '/help':
           console.log(boxen(
             [
+              '/ask      – ask me to help with a task in natural language',
               '/debug    – let me fix that error for you',
               '/index    – scan your codebase for better debugging',
               '/model    – pick a different AI model',
@@ -374,6 +407,111 @@ async function indexCommand(currentModel) {
       `• Try running /index again to retry download\n\n` +
       `Cloi will continue to work with basic error analysis.`,
       { ...BOX.OUTPUT_DARK, title: 'Indexing Failed' }
+    ));
+  }
+}
+
+/* ───────────────────────── Ask Command ────────────────────────────── */
+/**
+ * Command to handle natural language queries
+ * @param {string} query - The natural language query
+ * @param {string} currentModel - The current model to use
+ */
+async function askCommand(query, currentModel) {
+  try {
+    const systemInfo = await getSystemInfo();
+    const prompt = buildTaskPlanPrompt(query, systemInfo);
+  
+    console.log(chalk.gray('  Thinking...\n'));
+    
+    // Show thinking animation
+    const stopThinking = startThinking();
+    
+    // Query the model using our router
+    const result = await routeModelQuery(prompt, currentModel, { temperature: 0.1, max_tokens: 512 }, 'command_generation');
+    
+    stopThinking();
+    
+    // Parsing the response
+    let response;
+    try {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = result.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        response = JSON.parse(jsonMatch[0]);
+      } else {
+        response = JSON.parse(result.response);
+      }
+    } catch (parseError) {
+      console.log(boxen(
+        chalk.red('Failed to parse response from AI model.\n\nResponse was: ') + result.response,
+        { ...BOX.ERROR, title: 'Parse Error' }
+      ));
+      return;
+    }
+    
+    const { plan_steps, commands } = response;
+    
+    if (!plan_steps || !commands || !Array.isArray(plan_steps) || !Array.isArray(commands)) {
+      console.log(boxen(
+        chalk.red('Invalid response structure from AI model.\n\nResponse was: ') + JSON.stringify(response, null, 2),
+        { ...BOX.ERROR, title: 'Invalid Response' }
+      ));
+      return;
+    }
+    
+    // Show plan in the box
+    console.log(boxen(
+      chalk.bold('Execution Plan:\n\n') +
+      plan_steps.map(step => `• ${step}`).join('\n') +
+      `\n\n` + chalk.bold('Commands to be executed:\n') +
+      commands.map(cmd => `  $ ${chalk.cyan(cmd)}`).join('\n'),
+      { padding: 1, margin: 1, borderStyle: 'round', title: 'Cloi Terminal Helper', titleAlignment: 'center' }
+    ));
+    
+    // Safe Command Control
+    if (!commands.every(isCommandSafe)) {
+      console.log(boxen(
+        chalk.red('Error: A potentially dangerous command was detected. Aborting.'),
+        { ...BOX.ERROR, title: 'Security Warning' }
+      ));
+      return;
+    }
+    
+    // Confirm execution
+    if (commands.length > 0) {
+      const proceed = await askYesNo('Proceed with execution?');
+      if (proceed) {
+        // Execute commands
+        for (const command of commands) {
+          console.log(`\n$ ${chalk.yellow(command)}\n`);
+          await new Promise((resolve, reject) => {
+            // Split command and args
+            const [cmd, ...args] = command.split(' ');
+            
+            const spawned = spawn(cmd, args, { stdio: 'inherit', shell: true });
+            
+            spawned.on('close', (code) => {
+              if (code === 0) {
+                resolve();
+              } else {
+                reject(new Error(`Command failed with exit code ${code}`));
+              }
+            });
+            spawned.on('error', (err) => reject(err));
+          });
+        }
+        console.log(chalk.green('\n✅ Task completed successfully!'));
+      } else {
+        console.log(chalk.gray('  Task execution cancelled.'));
+      }
+    } else {
+      console.log(chalk.gray('  No commands to execute.'));
+    }
+  } catch (error) {
+    console.log(boxen(
+      chalk.red('An error occurred while processing your request:\n') + error.message,
+      { ...BOX.ERROR, title: 'Error' }
     ));
   }
 }

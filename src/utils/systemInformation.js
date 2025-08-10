@@ -13,7 +13,6 @@ export async function getSystemInfo() {
     };
   } catch (error) {
     console.error("Could not get system info:", error);
-    // Hata durumunda bile programın çökmemesi için varsayılan değerler dön
     return {
       platform: 'unknown',
       distro: 'unknown',
