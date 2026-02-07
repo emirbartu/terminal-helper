@@ -19,11 +19,10 @@ Terminal Helper is a local, context-aware agent designed to streamline your debu
 ## Features
 
 - **TypeScript** - Fully typed codebase for better maintainability
-- **Modern Python Tooling** - Uses `uv` and `pyproject.toml` instead of pip/requirements.txt
-- **On-Device/API Models** – Choose between local Ollama models or OpenAI-compatible APIs (OpenAI, Groq, etc.)
-- **Smart Context Retrieval** – RAG system automatically finds relevant code files for better debugging
+- **On-Device/API Models** – Choose between local Ollama models or OpenAI-compatible APIs (OpenAI, Groq, Kimi, etc.)
+- **Smart Context Retrieval** – Optional RAG system finds relevant code files for better debugging
 - **Safe Changes** – Review all diffs before applying. Full control to accept or reject
-- **Zero Setup** – RAG models, indexing, and dependencies install automatically on first use
+- **Zero Setup for AI** – Just Ollama or an API key. Python only needed for optional RAG features
 
 ## Installation
 
@@ -43,9 +42,9 @@ terminal-helper
 
 ### Interactive Mode Commands
 ```
-/debug    - Auto-fix errors using AI models (sets up RAG automatically)
-/index    - Re-index your codebase for improved debugging accuracy
-/model    - Pick a different AI model (Ollama or OpenAI)
+/debug    - Auto-fix errors using AI (optional RAG for better context)
+/index    - Index your codebase for RAG (requires Python)
+/model    - Pick a different AI model (Ollama, OpenAI, etc.)
 /logging  - Set up automatic error logging (zsh only)
 /yolo     - Toggle YOLO mode (full system access with auto-approve)
 /help     - Show available commands
@@ -102,9 +101,17 @@ If no environment variables are set, Terminal Helper will **prompt you** to ente
 2. Stored credentials in `~/.terminal_helper/auth.json`
 3. User prompt (credentials are then stored for future use)
 
-### RAG
+### RAG (Optional - Requires Python)
 
-Terminal Helper uses Retrieval-Augmented Generation to find relevant code files across your entire codebase when debugging. RAG combines CodeBERT (500 MB) embeddings with BM25 keyword search to identify files related to your error. Auto-installs on first `/debug` run.
+**RAG is completely optional.** Terminal Helper works great for debugging without it!
+
+If you want enhanced context retrieval that finds relevant code files across your entire codebase:
+
+1. Install Python 3.9+ and `uv`
+2. Run `npm run setup-python` to install CodeBERT dependencies
+3. Run `/index` to index your codebase
+
+RAG combines CodeBERT (500 MB) embeddings with BM25 keyword search to identify files related to your error. Without RAG, Terminal Helper still analyzes errors and suggests fixes using just the error output and stack traces.
 
 ### Terminal Logging
 
@@ -118,20 +125,56 @@ Enable automatic error capture without making Terminal Helper re-run commands. R
   <td><b>🖥️ Hardware</b></td>
   <td>
     • <b>Memory:</b> 8GB RAM minimum (16GB+ recommended)<br>
-    • <b>Storage:</b> 10GB+ free space (Phi-4 model: ~9.1GB)<br>
-    • <b>Processor:</b> Tested on M2 and M3
+    • <b>Storage:</b> 10GB+ free space for Ollama models<br>
+    • <b>Processor:</b> Tested on M2, M3, and x86_64
   </td>
 </tr>
 <tr>
-  <td><b>💻 Software</b></td>
+  <td><b>💻 Software (Basic)</b></td>
   <td>
-    • <b>OS:</b> macOS (Big Sur 11.0+), Linux<br>
-    • <b>Runtime:</b> Node.js 18+ and Python 3.9+<br>
-    • <b>Shell:</b> Zsh, Fish, Bash (limited testing)<br>
-    • <b>Dependencies:</b> Ollama (automatically installed if needed), uv (for Python)
+    • <b>OS:</b> macOS, Linux, Windows (WSL)<br>
+    • <b>Runtime:</b> Node.js 18+<br>
+    • <b>Shell:</b> Zsh, Bash, Fish<br>
+    • <b>AI:</b> Ollama OR OpenAI-compatible API key
+  </td>
+</tr>
+<tr>
+  <td><b>💻 Software (RAG - Optional)</b></td>
+  <td>
+    • <b>Python:</b> 3.9+ with uv<br>
+    • <b>Extra Storage:</b> ~500MB for CodeBERT model<br>
   </td>
 </tr>
 </table>
+
+### RAG Setup (Optional - for Enhanced Context)
+
+**Skip this if you just want to use Terminal Helper for debugging without RAG.**
+
+If you want the enhanced code context retrieval (RAG):
+
+1. Install `faiss-node` (optional dependency):
+```bash
+npm install faiss-node
+```
+
+2. Setup Python environment:
+```bash
+npm run setup-python
+```
+
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Setup Python environment
+npm run setup-python
+```
+
+This installs:
+- CodeBERT model (~500MB) for code embeddings
+- FAISS for vector search
+- BM25 for keyword search
 
 ### Development Setup
 
@@ -140,17 +183,17 @@ Enable automatic error capture without making Terminal Helper re-run commands. R
 git clone <your-repo-url>
 cd terminal-helper
 
-# Install Node.js dependencies
+# Install Node.js dependencies (no Python needed for basic usage)
 npm install
 
 # Build TypeScript
 npm run build
 
-# Install Python dependencies (using uv)
-cd bin && uv pip install -e .
-
 # Run locally
 npm run dev
+
+# Optional: Setup Python for RAG features
+npm run setup-python
 ```
 
 ### Contributing

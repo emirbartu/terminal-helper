@@ -15,14 +15,15 @@
         "build:bin": "tsc -p tsconfig.bin.json",
         "watch": "tsc -p tsconfig.json --watch",
         "watch:bin": "tsc -p tsconfig.bin.json --watch",
-        "postinstall": "npm run build && node dist/bin/cloi-setup.js --auto && (cd bin && uv pip install -e . || pip install -e . || echo 'Python requirements installation failed - continuing...') && node dist/bin/ollama-setup.js",
+        "postinstall": "npm run build && node dist/bin/cloi-setup.js --auto && node dist/bin/ollama-setup.js",
         "dev": "node dist/bin/index.js",
         "dev:setup": "node dist/bin/cloi-setup.js",
         "dev:ollama": "node dist/bin/ollama-setup.js",
         "codebert-setup": "node dist/bin/codebert-setup.js",
-        "codebert-service": "cd bin && uv run codebert_service.py --port 3090",
-        "codebert-start": "cd bin && nohup uv run codebert_service.py --port 3090 > /dev/null 2>&1 & echo 'CodeBERT service started in background'",
-        "setup-all": "npm run dev:setup && npm run codebert-setup && npm run dev:ollama",
+        "codebert-service": "cd bin && uv run python codebert_service.py --port 3090",
+        "codebert-start": "cd bin && nohup uv run python codebert_service.py --port 3090 > /dev/null 2>&1 & echo 'CodeBERT service started in background'",
+        "setup-python": "cd bin && (uv venv 2>/dev/null || echo 'Virtual environment already exists or using system Python') && uv sync",
+        "setup-all": "npm run dev:setup && npm run setup-python && npm run codebert-setup && npm run dev:ollama",
         "link": "npm link",
         "unlink": "npm unlink",
         "clean": "rm -rf node_modules package-lock.json dist",
@@ -33,19 +34,18 @@
     "author": "",
     "license": "GPL-3.0",
     "dependencies": {
-        "@huggingface/transformers": "^3.0.2",
         "boxen": "^8.0.1",
         "chalk": "^5.4.1",
-        "faiss-node": "^0.5.1",
         "ollama": "0.5.15",
         "openai": "^6.18.0",
-        "seedrandom": "^3.0.5",
         "systeminformation": "^5.27.7",
         "yargs": "^17.7.2"
     },
+    "optionalDependencies": {
+        "faiss-node": "^0.5.1"
+    },
     "devDependencies": {
         "@types/node": "^20.10.0",
-        "@types/seedrandom": "^3.0.8",
         "@types/yargs": "^17.0.32",
         "typescript": "^5.3.3"
     },
@@ -60,7 +60,6 @@
         "ollama",
         "ai",
         "debugging",
-        
         "command-line",
         "developer-tools"
     ],

@@ -323,16 +323,17 @@ The Env module (`src/utils/env.ts`) provides isolated environment variable manag
 Keys are validated before use. If no credentials are found, the user is prompted interactively.
 
 ### Data Privacy
-- CodeBERT model runs locally (no code sent to external servers)
-- Ollama models run locally
+- Ollama models run locally (no data sent externally)
 - Cloud APIs only receive error context, not full codebase
-- RAG indices stored locally in `.cloi/rag-data/`
+- RAG indices stored locally in `.terminal_helper/rag-data/` (only if using RAG)
 
 ---
 
-## Python Components
+## Python Components (Optional)
 
-Python files in `bin/` directory handle ML workloads:
+**Python is only required for RAG features.** Terminal Helper works without Python for basic debugging.
+
+Python files in `bin/` directory handle ML workloads for RAG:
 
 ### Requirements (pyproject.toml)
 - `torch>=2.5.0`
@@ -340,22 +341,24 @@ Python files in `bin/` directory handle ML workloads:
 - `onnx>=1.15.0`
 - `numpy>=1.24.0`
 
-### Setup
+### Setup (for RAG only)
 ```bash
-# Preferred: uv
-uv pip install -e bin/
+# Using npm script
+npm run setup-python
 
-# Alternative: pip
-pip install -e bin/
+# Or manually with uv
+cd bin
+uv venv
+uv sync
 ```
 
-### Running CodeBERT Service
+### Running CodeBERT Service (for RAG)
 ```bash
 # Foreground
-uv run bin/codebert_service.py --port 3090
+npm run codebert-service
 
 # Background
-nohup uv run bin/codebert_service.py --port 3090 > /dev/null 2>&1 &
+npm run codebert-start
 ```
 
 ---
@@ -363,10 +366,11 @@ nohup uv run bin/codebert_service.py --port 3090 > /dev/null 2>&1 &
 ## Configuration Files
 
 ### User Configuration
-Stored in `~/.cloi/`:
+Stored in `~/.terminal_helper/`:
 - `config.json` — App config (YOLO mode, model preferences)
-- `rag-data/` — FAISS and BM25 indices
-- `models/` — Downloaded CodeBERT model
+- `auth.json` — Stored API credentials
+- `rag-data/` — FAISS and BM25 indices (only if using RAG)
+- `models/` — Downloaded CodeBERT model (only if using RAG)
 - `terminal_output.log` — Terminal logging (if enabled)
 
 ### Project Configuration
