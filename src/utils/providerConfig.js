@@ -5,20 +5,23 @@
  * Handles detection of model providers and their availability.
  */
 
-import { isClaudeAvailable } from './apiKeyManager.js';
+import { isClaudeAvailable, isOpenAIAvailable } from './apiKeyManager.js';
 import { getClaudeModels } from '../core/executor/claude.js';
+import { getOpenAIModels } from '../core/executor/openai.js';
 import { readModels as getOllamaModels, getAllOllamaModels } from '../core/executor/ollama.js';
 
 // Provider definitions
 export const PROVIDERS = {
   OLLAMA: 'ollama',
-  CLAUDE: 'claude'
+  CLAUDE: 'claude',
+  OPENAI: 'openai'
 };
 
 // Model name patterns for provider detection
 const PROVIDER_PATTERNS = {
   [PROVIDERS.CLAUDE]: /^claude-/i,
-  [PROVIDERS.OLLAMA]: /^(?!claude-)/i // Everything that doesn't start with claude-
+  [PROVIDERS.OPENAI]: /^gpt-/i,
+  [PROVIDERS.OLLAMA]: /^(?!claude-|gpt-)/i // Everything that doesn't start with claude- or gpt-
 };
 
 /**
@@ -35,6 +38,10 @@ export function getModelProvider(modelName) {
     return PROVIDERS.CLAUDE;
   }
   
+  if (PROVIDER_PATTERNS[PROVIDERS.OPENAI].test(modelName)) {
+    return PROVIDERS.OPENAI;
+  }
+  
   return PROVIDERS.OLLAMA;
 }
 
@@ -48,6 +55,10 @@ export async function getProviderModels(provider) {
     case PROVIDERS.CLAUDE:
       const claudeAvailable = await isClaudeAvailable();
       return claudeAvailable ? getClaudeModels() : [];
+    
+    case PROVIDERS.OPENAI:
+      const openaiAvailable = await isOpenAIAvailable();
+      return openaiAvailable ? getOpenAIModels() : [];
     
     case PROVIDERS.OLLAMA:
       return getOllamaModels();
@@ -67,6 +78,9 @@ export async function isProviderAvailable(provider) {
     case PROVIDERS.CLAUDE:
       return await isClaudeAvailable();
     
+    case PROVIDERS.OPENAI:
+      return await isOpenAIAvailable();
+    
     case PROVIDERS.OLLAMA:
       return true; // Ollama is always considered available (handled by ollama.js)
     
@@ -84,6 +98,9 @@ export function getDefaultModelByProvider(provider) {
   switch (provider) {
     case PROVIDERS.CLAUDE:
       return 'claude-4-sonnet-20250514'; // Default to Claude 4 Sonnet
+    
+    case PROVIDERS.OPENAI:
+      return process.env.OPENAI_MODEL || 'gpt-4o-mini'; // Default to GPT-4o Mini
     
     case PROVIDERS.OLLAMA:
       return 'phi4:latest'; // Default Ollama model
@@ -140,6 +157,34 @@ export async function getAllProvidersModels() {
     console.error('Error getting Claude models:', error.message);
   }
   
+  // Get OpenAI models (only if API key is available)
+  try {
+    const openaiModels = await getProviderModels(PROVIDERS.OPENAI);
+    for (const model of openaiModels) {
+      // Create user-friendly labels for OpenAI models
+      let friendlyName = model;
+      if (model.includes('gpt-4o-mini')) {
+        friendlyName = 'GPT-4o Mini';
+      } else if (model.includes('gpt-4o')) {
+        friendlyName = 'GPT-4o';
+      } else if (model.includes('gpt-4-turbo')) {
+        friendlyName = 'GPT-4 Turbo';
+      } else if (model.includes('gpt-4')) {
+        friendlyName = 'GPT-4';
+      } else if (model.includes('gpt-3.5-turbo')) {
+        friendlyName = 'GPT-3.5 Turbo';
+      }
+      
+      models.push({
+        model,
+        provider: PROVIDERS.OPENAI,
+        label: `${friendlyName} (OpenAI)`
+      });
+    }
+  } catch (error) {
+    console.error('Error getting OpenAI models:', error.message);
+  }
+  
   return models;
 }
 
@@ -164,6 +209,8 @@ export function getProviderDisplayName(provider) {
   switch (provider) {
     case PROVIDERS.CLAUDE:
       return 'Anthropic Claude';
+    case PROVIDERS.OPENAI:
+      return 'OpenAI (API)';
     case PROVIDERS.OLLAMA:
       return 'Ollama (Local)';
     default:

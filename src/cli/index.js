@@ -40,6 +40,8 @@ import {
 } from '../ui/terminalUI.js';
 import { runCommand, ensureDir, writeDebugLog } from '../utils/cliTools.js';
 import { readHistory, lastRealCommand, selectHistoryItem } from '../utils/history.js';
+import { existsSync } from 'fs';
+import { homedir } from 'os';
 import { 
   analyzeWithLLM, 
   determineErrorType, 
@@ -1596,7 +1598,45 @@ async function debugLoop(initialCmd, limit, currentModel) {
       currentModel = 'phi4:latest';
     }
     
+    // Check if this is first run (no config file exists)
+    const CONFIG_FILE = join(homedir(), '.cloi', 'config.json');
+    const isFirstRun = !existsSync(CONFIG_FILE);
     
+    // On first run, check if we should prompt for Ollama setup
+    if (isFirstRun && !argv.model) {
+      const { isClaudeAvailable } = await import('../utils/apiKeyManager.js');
+      const { isOpenAIAvailable } = await import('../utils/apiKeyManager.js');
+      
+      const hasClaudeKey = await isClaudeAvailable();
+      const hasOpenAIKey = await isOpenAIAvailable();
+      
+      // Only prompt if no API keys are configured
+      if (!hasClaudeKey && !hasOpenAIKey) {
+        console.log(boxen(
+          `Welcome to Cloi! 🎉\n\n` +
+          `To get started, you need an AI model. You can either:\n\n` +
+          `1. Download Ollama (local, free, private) + phi4 model\n` +
+          `2. Use OpenAI/Claude with your own API key\n\n` +
+          `Would you like to download Ollama and the phi4 model?\n` +
+          `This will use ~4GB of disk space.`,
+          { ...BOX.CONFIRM, title: 'First Run Setup' }
+        ));
+        
+        const setupOllama = await askYesNo('Download Ollama + phi4? (y/N):', true);
+        console.log(setupOllama ? 'y' : 'N');
+        
+        if (!setupOllama) {
+          // User declined Ollama setup
+          console.log(chalk.gray('\nNo problem! You can:'));
+          console.log(chalk.gray('  • Set OPENAI_API_KEY or ANTHROPIC_API_KEY in your environment'));
+          console.log(chalk.gray('  • Use /model to select a different model'));
+          console.log(chalk.gray('  • Run with --model to specify a model\n'));
+          
+          // Don't default to phi4 if they declined
+          currentModel = null;
+        }
+      }
+    }
     
     if (currentModel) {
       // Check if model is available based on its provider
@@ -1716,6 +1756,7 @@ export async function selectModelFromList() {
     // Separate models by provider
     const ollamaModels = allModels.filter(m => m.provider === PROVIDERS.OLLAMA);
     const claudeModels = allModels.filter(m => m.provider === PROVIDERS.CLAUDE);
+    const openaiModels = allModels.filter(m => m.provider === PROVIDERS.OPENAI);
     
     // Create display options with proper categorization
     const displayOptions = [];
@@ -1750,6 +1791,23 @@ export async function selectModelFromList() {
       }
     }
     
+    // Add OpenAI section header and models
+    if (openaiModels.length > 0) {
+      if (ollamaModels.length > 0 || claudeModels.length > 0) {
+        displayOptions.push(''); // Empty line separator
+        modelMapping.push(null);
+      }
+      
+      displayOptions.push(chalk.cyan('OpenAI Models:'));
+      modelMapping.push(null); // Section headers don't map to models
+      
+      for (const modelInfo of openaiModels) {
+        const cleanLabel = modelInfo.label.replace(' (OpenAI)', '');
+        displayOptions.push(`  ${cleanLabel}`);
+        modelMapping.push(modelInfo.model);
+      }
+    }
+    
     // Create the picker with categorized display
     const picker = makePicker(displayOptions, 'Select Model');
     const selected = await picker();
@@ -1766,11 +1824,16 @@ export async function selectModelFromList() {
       return await selectModelFromList(); // Recursively call to try again
     }
     
-         // Check if this is an Ollama model that needs installation
-     const { getModelProvider } = await import('../utils/providerConfig.js');
-     const provider = getModelProvider(selectedModel);
-     
-     if (provider === PROVIDERS.OLLAMA) {
+     // Check if this is an Ollama model that needs installation
+      const { getModelProvider } = await import('../utils/providerConfig.js');
+      const provider = getModelProvider(selectedModel);
+      
+      // Skip installation check for API-based models (Claude and OpenAI)
+      if (provider === PROVIDERS.CLAUDE || provider === PROVIDERS.OPENAI) {
+        return selectedModel;
+      }
+      
+      if (provider === PROVIDERS.OLLAMA) {
        const installedModels = await readModels();
       const isInstalled = installedModels.includes(selectedModel);
       

@@ -15,6 +15,11 @@ let _claudeAvailableCache = null;
 let _cacheTimestamp = null;
 const CACHE_DURATION = 30000; // 30 seconds
 
+// Cache for OpenAI API key detection
+let openAIAvailableCache = null;
+let openAILastCheck = 0;
+const OPENAI_CACHE_TTL = 30000; // 30 seconds
+
 /**
  * Gets the path to the user's .zshrc file
  * @returns {string} Path to the user's .zshrc file
@@ -130,4 +135,83 @@ export function getAnthropicApiKey() {
 export function clearCache() {
   _claudeAvailableCache = null;
   _cacheTimestamp = null;
+  openAIAvailableCache = null;
+  openAILastCheck = 0;
+}
+
+/**
+ * Validates the format of an OpenAI API key
+ * @param {string} apiKey - The API key to validate
+ * @returns {boolean} True if the API key format is valid
+ */
+export function validateOpenAIKeyFormat(apiKey) {
+  if (!apiKey || typeof apiKey !== 'string') {
+    return false;
+  }
+
+  return (apiKey.startsWith('sk-') || apiKey.startsWith('sk-or-v1-')) && apiKey.length > 20;
+}
+
+/**
+ * Detects if an OpenAI API key is present in .zshrc
+ * @returns {Promise<string|null>} The API key if found, null otherwise
+ */
+export async function detectOpenAIApiKey() {
+  const zshrcPath = getZshrcPath();
+
+  if (!existsSync(zshrcPath)) {
+    return null;
+  }
+
+  try {
+    const content = await fs.readFile(zshrcPath, 'utf8');
+    const envVars = parseEnvironmentVariables(content);
+    const apiKey = envVars.OPENAI_API_KEY;
+    return validateOpenAIKeyFormat(apiKey) ? apiKey : null;
+  } catch (error) {
+    console.error(`Error reading .zshrc: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Gets the OpenAI API key from environment variables
+ * @returns {Promise<string|null>} The API key if available, null otherwise
+ */
+export async function getOpenAIApiKey() {
+  const envKey = process.env.OPENAI_API_KEY;
+  if (validateOpenAIKeyFormat(envKey)) {
+    return envKey;
+  }
+
+  return await detectOpenAIApiKey();
+}
+
+/**
+ * Gets the OpenAI base URL from environment variables
+ * @returns {string} The base URL for OpenAI API requests
+ */
+export function getOpenAIBaseURL() {
+  return process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+}
+
+/**
+ * Checks if OpenAI is available (with caching)
+ * @param {boolean} forceRefresh - Force refresh the cache
+ * @returns {Promise<boolean>} True if OpenAI is available
+ */
+export async function isOpenAIAvailable(forceRefresh = false) {
+  const now = Date.now();
+
+  if (!forceRefresh && openAIAvailableCache !== null && (now - openAILastCheck) < OPENAI_CACHE_TTL) {
+    return openAIAvailableCache;
+  }
+
+  const apiKey = await getOpenAIApiKey();
+  const available = apiKey !== null;
+
+  openAIAvailableCache = available;
+  openAILastCheck = now;
+
+  return available;
 } 

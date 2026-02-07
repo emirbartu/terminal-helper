@@ -7,6 +7,7 @@
 
 import * as OllamaExecutor from './ollama.js';
 import * as ClaudeExecutor from './claude.js';
+import * as OpenAIExecutor from './openai.js';
 import { getModelProvider, PROVIDERS } from '../../utils/providerConfig.js';
 import { startThinking } from '../ui/thinking.js';
 
@@ -41,6 +42,10 @@ export async function routeModelQuery(prompt, model, options = {}, optimizationS
       response = await ClaudeExecutor.queryClaudeWithTempScript(prompt, model, optimizationSet, onStreamStart);
       break;
     
+    case PROVIDERS.OPENAI:
+      response = await OpenAIExecutor.queryOpenAIWithTempScript(prompt, model, optimizationSet, onStreamStart);
+      break;
+    
     case PROVIDERS.OLLAMA:
     default:
       response = await OllamaExecutor.queryOllamaWithTempScript(prompt, model, optimizationSet, onStreamStart);
@@ -68,6 +73,9 @@ export async function routeStructuredQuery(prompt, model, schema, options = {}) 
     case PROVIDERS.CLAUDE:
       return ClaudeExecutor.queryClaudeStructured(prompt, model, schema, options);
     
+    case PROVIDERS.OPENAI:
+      return OpenAIExecutor.queryOpenAIStructured(prompt, model, schema, options);
+    
     case PROVIDERS.OLLAMA:
     default:
       return OllamaExecutor.queryOllamaStructured(prompt, model, schema, options);
@@ -85,6 +93,9 @@ export async function ensureModelAvailable(model) {
   switch (provider) {
     case PROVIDERS.CLAUDE:
       return ClaudeExecutor.ensureClaudeAvailable();
+    
+    case PROVIDERS.OPENAI:
+      return OpenAIExecutor.ensureOpenAIAvailable();
     
     case PROVIDERS.OLLAMA:
     default:
@@ -118,6 +129,14 @@ export async function getAllAvailableModels(includeRemote = true) {
     }
   }
   
+  // Include OpenAI models if available
+  try {
+    const openaiModels = await getAvailableOpenAIModels();
+    models.push(...openaiModels);
+  } catch (error) {
+    console.error('Error getting OpenAI models:', error.message);
+  }
+  
   return models;
 }
 
@@ -135,6 +154,22 @@ export async function getAvailableClaudeModels() {
     console.error('Error checking Claude availability:', error.message);
   }
   
+  return [];
+}
+
+/**
+ * Gets the list of available OpenAI models (only if API key is configured)
+ * @returns {Promise<string[]>} - Array of available OpenAI model names
+ */
+export async function getAvailableOpenAIModels() {
+  try {
+    const openaiAvailable = await OpenAIExecutor.ensureOpenAIAvailable();
+    if (openaiAvailable) {
+      return OpenAIExecutor.getOpenAIModels();
+    }
+  } catch (error) {
+    console.error('Error checking OpenAI availability:', error.message);
+  }
   return [];
 }
 
@@ -158,6 +193,10 @@ export async function installModelIfNeeded(model) {
     case PROVIDERS.CLAUDE:
       // Claude models don't need installation, just API key validation
       return ClaudeExecutor.ensureClaudeAvailable();
+    
+    case PROVIDERS.OPENAI:
+      // OpenAI models don't need installation, just API key validation
+      return OpenAIExecutor.ensureOpenAIAvailable();
     
     case PROVIDERS.OLLAMA:
     default:
@@ -190,6 +229,18 @@ export async function routeToProvider(model, operation, ...args) {
           return ClaudeExecutor.ensureClaudeAvailable();
         default:
           throw new Error(`Unsupported Claude operation: ${operation}`);
+      }
+    
+    case PROVIDERS.OPENAI:
+      switch (operation) {
+        case 'query':
+          return OpenAIExecutor.queryOpenAIStream(...args);
+        case 'structured':
+          return OpenAIExecutor.queryOpenAIStructured(...args);
+        case 'ensure':
+          return OpenAIExecutor.ensureOpenAIAvailable();
+        default:
+          throw new Error(`Unsupported OpenAI operation: ${operation}`);
       }
     
     case PROVIDERS.OLLAMA:
