@@ -48,8 +48,25 @@ Cloi is built for developers who live in the terminal and value privacy:
 /index    - Re-index your codebase for improved debugging accuracy
 /model    - Pick a different AI model (Ollama or Claude)
 /logging  - Set up automatic error logging (zsh only)
+/yolo     - Toggle YOLO mode (full system access with auto-approve)
 /help     - Show available commands
 ```
+
+### YOLO Mode
+
+YOLO (You Only Live Once) mode grants the AI full system access including sudo privileges. This is useful for:
+- Installing system packages
+- Modifying system configuration
+- Administrative tasks
+
+**⚠️ EXTREME CAUTION ADVISED ⚠️**
+
+YOLO mode includes these safety features:
+- System prompts with safety warnings about dangerous commands
+- Blocks commands like `rm -rf /`, `mkfs`, fork bombs
+- Optional auto-approve (executes without confirmation)
+
+Enable YOLO mode by running `/yolo` in the interactive CLI. You'll be prompted to confirm and can toggle auto-approve.
 
 ### Using Claude-4 Model
 
@@ -105,6 +122,15 @@ For more detailed information on contributing, please refer to the [CONTRIBUTING
 ---
 
 ### Patches 
+
+#### [1.0.9] - February 7, 2026
+- **Feature:** Added YOLO mode for full system access
+  - Run `/yolo` to toggle YOLO mode for administrative tasks
+  - Grants AI sudo privileges for system modifications
+  - Includes comprehensive safety warnings in system prompts
+  - Blocks dangerous commands (rm -rf /, mkfs, fork bombs)
+  - Optional auto-approve for hands-free command execution
+  - Visual indicator when YOLO mode is active
 
 #### [1.0.8] - May 28, 2025 @ 4:00am PST
 - **Feature:** Integrated Retrieval-Augmented Generation (RAG) for enhanced debugging

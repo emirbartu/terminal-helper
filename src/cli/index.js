@@ -133,8 +133,12 @@ async function interactiveLoop(initialCmd, limit, initialModel) {
   
     while (true) {
       closeReadline(); // Ensure clean state before each iteration
+      const { isYOLOEnabled } = await import('../utils/yoloConfig.js');
+      const yoloEnabled = await isYOLOEnabled();
+      const yoloIndicator = yoloEnabled ? chalk.red(' [YOLO]') : '';
+      
       console.log(boxen(
-        `${chalk.gray('Type a command ')} (${chalk.blue('/ask')}, ${chalk.blue('/debug')}, ${chalk.blue('/index')}, ${chalk.blue('/model')}, ${chalk.blue('/logging')}, ${chalk.blue('/help')})`,
+        `${chalk.gray('Type a command ')} (${chalk.blue('/ask')}, ${chalk.blue('/debug')}, ${chalk.blue('/index')}, ${chalk.blue('/model')}, ${chalk.blue('/logging')}, ${chalk.blue('/yolo')}, ${chalk.blue('/help')})${yoloIndicator}`,
         BOX.PROMPT
       ));
       // Add improved gray text below the boxen prompt for exit instructions and /debug info
@@ -254,6 +258,13 @@ async function interactiveLoop(initialCmd, limit, initialModel) {
           }
           break;
         }
+        
+        case '/yolo': {
+          process.stdout.write('\n');
+          await yoloCommand();
+          process.stdout.write('\n');
+          break;
+        }
 
         case '/help':
           console.log(boxen(
@@ -263,6 +274,7 @@ async function interactiveLoop(initialCmd, limit, initialModel) {
               '/index    – scan your codebase for better debugging',
               '/model    – pick a different AI model',
               '/logging  – set up automatic error logging (zsh only)',
+              '/yolo     – toggle YOLO mode (auto-approve commands with sudo)',
               '/help     – show this menu',
             ].join('\n'),
             BOX.PROMPT
@@ -411,6 +423,86 @@ async function indexCommand(currentModel) {
   }
 }
 
+/* ───────────────────────── YOLO Command ────────────────────────────── */
+/**
+ * Command to toggle YOLO mode settings
+ */
+async function yoloCommand() {
+  const { 
+    getYOLOStatus, 
+    enableYOLO, 
+    disableYOLO, 
+    setAutoApprove,
+    isYOLOEnabled 
+  } = await import('../utils/yoloConfig.js');
+  
+  const status = await getYOLOStatus();
+  
+  if (!status.enabled) {
+    console.log(boxen(
+      chalk.yellow('⚠️  YOLO MODE - EXTREME CAUTION ADVISED ⚠️\n\n') +
+      'YOLO mode grants the AI full system access including:\n' +
+      '• Execute commands with sudo privileges\n' +
+      '• Modify system files\n' +
+      '• Install system packages\n' +
+      '• Perform administrative tasks\n\n' +
+      chalk.red('SAFETY WARNINGS:\n') +
+      '• NEVER execute "rm -rf /" or similar commands\n' +
+      '• NEVER format drives or destroy data\n' +
+      '• ALWAYS review commands before execution\n\n' +
+      'Enable YOLO mode?',
+      { ...BOX.CONFIRM, title: 'YOLO Mode', borderColor: 'red' }
+    ));
+    
+    const shouldEnable = await askYesNo('Enable YOLO mode?');
+    if (shouldEnable) {
+      console.log('\n');
+      const autoApprove = await askYesNo('Enable auto-approve? (commands will execute without confirmation)');
+      
+      await enableYOLO();
+      if (autoApprove) {
+        await setAutoApprove(true);
+      }
+      
+      console.log(boxen(
+        chalk.red('🔥 YOLO MODE ENABLED 🔥\n\n') +
+        `Auto-approve: ${autoApprove ? chalk.green('ON') : chalk.yellow('OFF')}\n\n` +
+        'The AI now has full system access.\n' +
+        'Use with extreme caution!',
+        { ...BOX.OUTPUT, title: 'YOLO Active', borderColor: 'red' }
+      ));
+    } else {
+      console.log(chalk.gray('YOLO mode not enabled.'));
+    }
+  } else {
+    console.log(boxen(
+      chalk.red('YOLO mode is currently ENABLED\n\n') +
+      `Auto-approve: ${status.autoApprove ? chalk.green('ON') : chalk.yellow('OFF')}\n\n` +
+      'What would you like to do?',
+      { ...BOX.CONFIRM, title: 'YOLO Status', borderColor: 'yellow' }
+    ));
+    
+    const disable = await askYesNo('Disable YOLO mode?');
+    if (disable) {
+      await disableYOLO();
+      console.log(boxen(
+        chalk.green('YOLO mode disabled.\n') +
+        'System access has been restricted.',
+        { ...BOX.OUTPUT, title: 'YOLO Disabled' }
+      ));
+    } else {
+      const toggleAutoApprove = await askYesNo(`Toggle auto-approve? (currently ${status.autoApprove ? 'ON' : 'OFF'})`);
+      if (toggleAutoApprove) {
+        await setAutoApprove(!status.autoApprove);
+        console.log(boxen(
+          `Auto-approve is now ${!status.autoApprove ? chalk.green('ON') : chalk.yellow('OFF')}`,
+          { ...BOX.OUTPUT, title: 'Setting Updated' }
+        ));
+      }
+    }
+  }
+}
+
 /* ───────────────────────── Ask Command ────────────────────────────── */
 /**
  * Command to handle natural language queries
@@ -469,18 +561,43 @@ async function askCommand(query, currentModel) {
       { padding: 1, margin: 1, borderStyle: 'round', title: 'Cloi Terminal Helper', titleAlignment: 'center' }
     ));
     
-    // Safe Command Control
-    if (!commands.every(isCommandSafe)) {
-      console.log(boxen(
-        chalk.red('Error: A potentially dangerous command was detected. Aborting.'),
-        { ...BOX.ERROR, title: 'Security Warning' }
-      ));
-      return;
+    // YOLO-aware command validation
+    const { validateCommandSafety, isAutoApproveEnabled, isYOLOEnabled } = await import('../utils/yoloConfig.js');
+    const isYOLO = await isYOLOEnabled();
+    const autoApprove = await isAutoApproveEnabled();
+    
+    // Validate each command for safety
+    for (const command of commands) {
+      const validation = validateCommandSafety(command, isYOLO);
+      if (!validation.safe) {
+        console.log(boxen(
+          chalk.red('Error: Potentially dangerous command detected.\n\n') +
+          `Command: ${chalk.yellow(command)}\n` +
+          `Reason: ${validation.reason}`,
+          { ...BOX.ERROR, title: 'Security Warning' }
+        ));
+        return;
+      }
+      if (validation.requiresSudo) {
+        console.log(boxen(
+          chalk.yellow('Command requires sudo privileges.\n\n') +
+          `Command: ${chalk.yellow(command)}\n\n` +
+          'Enable YOLO mode (/yolo) to execute commands with elevated privileges.',
+          { ...BOX.ERROR, title: 'Sudo Required' }
+        ));
+        return;
+      }
     }
     
-    // Confirm execution
+    // Confirm execution (unless auto-approve is on)
     if (commands.length > 0) {
-      const proceed = await askYesNo('Proceed with execution?');
+      let proceed = true;
+      if (!autoApprove) {
+        proceed = await askYesNo('Proceed with execution?');
+      } else {
+        console.log(chalk.yellow('\n⚡ Auto-approve enabled - executing commands without confirmation\n'));
+      }
+      
       if (proceed) {
         // Execute commands
         for (const command of commands) {
