@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Automatic Ollama installation script for CLOI
+Automatic Ollama installation script for Terminal Helper
 
 This script checks if Ollama is installed and installs it if necessary.
 It also verifies the service is running and starts it if needed.
@@ -123,11 +123,11 @@ class OllamaSetup:
                 return False
             else:
                 print(f"Service auto-start not supported on {self.system}.")
-                print("Please start Ollama manually before using CLOI.")
+                print("Please start Ollama manually before using Terminal Helper.")
                 return False
         except Exception as e:
             print(f"Failed to start Ollama service: {e}")
-            print("Please start Ollama manually using 'ollama serve' before using CLOI.")
+            print("Please start Ollama manually using 'ollama serve' before using Terminal Helper.")
             return False
 
     def ensure_model_available(self):
@@ -177,12 +177,12 @@ def main():
     # Start the service
     if not setup.start_service():
         print("Warning: Could not start Ollama service.")
-        print("Please start Ollama manually using 'ollama serve' before using CLOI.")
+        print("Please start Ollama manually using 'ollama serve' before using Terminal Helper.")
     
     # Ensure default model is available
     if not setup.ensure_model_available():
         print("Warning: Could not ensure the default model is available.")
-        print("Please run 'ollama pull phi4' manually before using CLOI.")
+        print("Please run 'ollama pull phi4' manually before using Terminal Helper.")
     
     print("Ollama setup completed successfully!")
 

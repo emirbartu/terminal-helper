@@ -61,7 +61,7 @@ class CodeBERTDownloader:
         
         # Determine the installation directory
         home_dir = Path.home()
-        self.install_dir = Path(os.environ.get('CLOI_DATA_DIR', home_dir / '.cloi')) / 'models' / 'codebert-base'
+        self.install_dir = Path(os.environ.get('Terminal Helper_DATA_DIR', home_dir / '.terminal_helper')) / 'models' / 'codebert-base'
         
     def check_model_files(self):
         """Check if the model files already exist"""
@@ -265,7 +265,7 @@ class CodeBERTDownloader:
     
     def setup(self):
         """Main setup function"""
-        print("Setting up CodeBERT model for CLOI...")
+        print("Setting up CodeBERT model for Terminal Helper...")
         
         if self.check_model_files():
             print("CodeBERT model files already exist.")

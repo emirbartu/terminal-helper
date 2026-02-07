@@ -28,7 +28,7 @@ args = parser.parse_args()
 
 # Set default model directory if not specified
 home_dir = Path.home()
-model_dir = args.model_dir or str(home_dir / '.cloi' / 'models' / 'codebert-base')
+model_dir = args.model_dir or str(home_dir / '.terminal_helper' / 'models' / 'codebert-base')
 
 # Global variables
 model = None

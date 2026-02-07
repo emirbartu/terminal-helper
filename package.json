@@ -1,33 +1,38 @@
 {
-    "name": "@cloi-ai/cloi",
-    "version": "1.0.9",
-    "description": "Security-first agentic debugging tool for the terminal",
-    "main": "bin/index.js",
+    "name": "terminal-helper",
+    "version": "1.0.0",
+    "description": "Security-first agentic debugging tool for the terminal (TypeScript fork of Cloi)",
+    "main": "dist/bin/index.js",
     "type": "module",
     "bin": {
-        "cloi": "bin/index.js",
-        "cloi-setup": "bin/cloi-setup.cjs",
-        "cloi-ollama-setup": "bin/ollama-setup.cjs"
+        "terminal-helper": "dist/bin/index.js",
+        "th-setup": "dist/bin/cloi-setup.js",
+        "th-ollama-setup": "dist/bin/ollama-setup.js"
     },
     "scripts": {
-        "postinstall": "node bin/cloi-setup.cjs --auto && (pip install -r bin/requirements.txt || pip3 install -r bin/requirements.txt || echo 'Python requirements installation failed - continuing...') && node bin/ollama-setup.cjs",
-        "dev": "node bin/index.js",
-        "dev:setup": "node bin/cloi-setup.cjs",
-        "dev:ollama": "node bin/ollama-setup.cjs",
-        "codebert-setup": "node bin/codebert-setup.cjs",
-        "codebert-service": "python3 bin/codebert_service.py --port 3090",
-        "codebert-start": "nohup python3 bin/codebert_service.py --port 3090 > /dev/null 2>&1 & echo 'CodeBERT service started in background'",
+        "build": "tsc -p tsconfig.json && tsc -p tsconfig.bin.json",
+        "build:src": "tsc -p tsconfig.json",
+        "build:bin": "tsc -p tsconfig.bin.json",
+        "watch": "tsc -p tsconfig.json --watch",
+        "watch:bin": "tsc -p tsconfig.bin.json --watch",
+        "postinstall": "npm run build && node dist/bin/cloi-setup.js --auto && (cd bin && uv pip install -e . || pip install -e . || echo 'Python requirements installation failed - continuing...') && node dist/bin/ollama-setup.js",
+        "dev": "node dist/bin/index.js",
+        "dev:setup": "node dist/bin/cloi-setup.js",
+        "dev:ollama": "node dist/bin/ollama-setup.js",
+        "codebert-setup": "node dist/bin/codebert-setup.js",
+        "codebert-service": "cd bin && uv run codebert_service.py --port 3090",
+        "codebert-start": "cd bin && nohup uv run codebert_service.py --port 3090 > /dev/null 2>&1 & echo 'CodeBERT service started in background'",
         "setup-all": "npm run dev:setup && npm run codebert-setup && npm run dev:ollama",
         "link": "npm link",
         "unlink": "npm unlink",
-        "clean": "rm -rf node_modules package-lock.json",
+        "clean": "rm -rf node_modules package-lock.json dist",
         "reinstall": "npm run clean && npm install",
-        "test-rag": "node -e \"import('./src/rag/index.js').then(r => console.log('RAG system loaded successfully'))\""
+        "test-rag": "node -e \"import('./dist/rag/index.js').then(r => console.log('RAG system loaded successfully'))\"",
+        "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.bin.json"
     },
-    "author": "Gabriel Cha, Min Kim",
+    "author": "",
     "license": "GPL-3.0",
     "dependencies": {
-        "@anthropic-ai/sdk": "^0.52.0",
         "@huggingface/transformers": "^3.0.2",
         "boxen": "^8.0.1",
         "chalk": "^5.4.1",
@@ -38,14 +43,15 @@
         "systeminformation": "^5.27.7",
         "yargs": "^17.7.2"
     },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "@types/seedrandom": "^3.0.8",
+        "@types/yargs": "^17.0.32",
+        "typescript": "^5.3.3"
+    },
     "engines": {
-        "node": ">=14.0.0"
+        "node": ">=18.0.0"
     },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/cloi-ai/cloi"
-    },
-    "homepage": "https://github.com/cloi-ai/cloi#readme",
     "keywords": [
         "cli",
         "terminal",
@@ -54,15 +60,13 @@
         "ollama",
         "ai",
         "debugging",
-        "claude",
-        "sonnet",
-        "opus",
+        
         "command-line",
         "developer-tools"
     ],
     "files": [
-        "bin/",
-        "src/",
+        "dist/",
+        "bin/pyproject.toml",
         "README.md",
         "LICENSE"
     ]

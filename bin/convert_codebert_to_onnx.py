@@ -76,7 +76,7 @@ def main():
     
     # Use default paths if not specified
     home_dir = Path.home()
-    model_dir = args.model_dir or str(home_dir / '.cloi' / 'models' / 'codebert-base')
+    model_dir = args.model_dir or str(home_dir / '.terminal_helper' / 'models' / 'codebert-base')
     output_dir = Path(model_dir) / 'onnx'
     output_file = args.output_file or str(output_dir / 'model.onnx')
     
